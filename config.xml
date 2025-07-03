@@ -1,0 +1,12 @@
+
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns="http://www.samsung.com/tv/metadata">
+  <name>IPTV GitHub App</name>
+  <title>IPTV WebApp</title>
+  <cpname>hatemiptv</cpname>
+  <description>GitHub-hosted IPTV player for Samsung TVs</description>
+  <version>1.0</version>
+  <type>widget</type>
+  <ui>fullscreen</ui>
+  <startfile>https://hatemiptv.github.io/index.html</startfile>
+</widget>
