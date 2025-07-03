@@ -1,47 +1,51 @@
 
 <!DOCTYPE html>
-<html lang="ar">
+<html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <title>IPTV قنوات عربي (429 قناة)</title>
-    <style>
-        body { background-color: black; color: lightgreen; font-family: sans-serif; text-align: center; }
-        select { font-size: 18px; padding: 10px; margin: 20px; }
-        video { width: 80%; height: auto; margin-top: 20px; }
-    </style>
+  <meta charset="UTF-8" />
+  <title>IPTV قنوات عربي - 429 قناة</title>
+  <style>
+    body { margin: 0; background: #111; color: #fff; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; }
+    aside { width: 300px; background: #222; overflow-y: auto; border-left: 2px solid #333; }
+    main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    video { width: 90%; height: auto; background: black; margin-top: 20px; border: 2px solid #0f0; }
+    h1 { margin: 10px 0; color: #0f0; font-size: 24px; }
+    .channel { padding: 10px; cursor: pointer; border-bottom: 1px solid #333; }
+    .channel:hover { background: #333; }
+  </style>
 </head>
 <body>
-    <h1>IPTV قنوات عربي (429 قناة)</h1>
-    <select id="channelSelect" onchange="playChannel()">
-        <option value="">اختر قناة</option>
-    </select>
+  <aside id="channelList"></aside>
+  <main>
+    <h1>IPTV - 429 قناة عربية</h1>
     <video id="videoPlayer" controls autoplay></video>
-    <script>
-        async function fetchChannels() {
-            const res = await fetch('channels.m3u');
-            const text = await res.text();
-            const lines = text.split('\n');
-            const select = document.getElementById('channelSelect');
-            for (let i = 0; i < lines.length; i++) {
-                if (lines[i].startsWith('#EXTINF')) {
-                    const name = lines[i].split(',')[1];
-                    const url = lines[i+1];
-                    const option = document.createElement('option');
-                    option.text = name;
-                    option.value = url;
-                    select.appendChild(option);
-                }
-            }
+  </main>
+  <script>
+    async function loadChannels() {
+      const res = await fetch("channels.m3u");
+      const text = await res.text();
+      const lines = text.split("\n");
+      const list = document.getElementById("channelList");
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].startsWith("#EXTINF")) {
+          const name = lines[i].split(",")[1] || "قناة غير معروفة";
+          const url = lines[i + 1];
+          const div = document.createElement("div");
+          div.className = "channel";
+          div.textContent = name;
+          div.onclick = () => playChannel(url);
+          list.appendChild(div);
         }
+      }
+    }
 
-        function playChannel() {
-            const video = document.getElementById('videoPlayer');
-            const url = document.getElementById('channelSelect').value;
-            video.src = url;
-            video.play();
-        }
+    function playChannel(url) {
+      const player = document.getElementById("videoPlayer");
+      player.src = url;
+      player.play();
+    }
 
-        fetchChannels();
-    </script>
+    loadChannels();
+  </script>
 </body>
 </html>
