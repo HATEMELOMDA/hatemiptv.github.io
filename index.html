@@ -1,53 +1,52 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8" />
-  <title>IPTV 429 قناة عربي</title>
+  <meta charset="UTF-8">
+  <title>IPTV عربي قابل للتشغيل</title>
   <style>
     body { background: #000; color: #0f0; font-family: sans-serif; text-align: center; }
-    h1 { color: #0f0; }
-    select { width: 80%; padding: 10px; font-size: 18px; }
     video { width: 90%; margin-top: 20px; background: #111; }
+    select { width: 80%; padding: 10px; font-size: 18px; margin-top: 20px; }
   </style>
 </head>
 <body>
-  <h1>IPTV عربي (429 قناة)</h1>
-  <select id="channelList" onchange="playChannel(this.value)"></select>
+  <h1>IPTV عربي</h1>
+  <select id="chanList" onchange="play(this.value)">
+    <option>-- اختر قناة --</option>
+  </select>
   <video id="player" controls autoplay></video>
 
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <script>
-    const player = document.getElementById('player');
-    const select = document.getElementById('channelList');
-
-    fetch('channels.m3u')
-      .then(res => res.text())
-      .then(text => {
-        const lines = text.split('\n');
-        for (let i = 0; i < lines.length; i++) {
-          if (lines[i].startsWith('#EXTINF')) {
-            const title = lines[i].split(',')[1] || 'قناة';
-            const url = lines[i + 1];
-            const option = document.createElement('option');
-            option.value = url;
-            option.text = title;
-            select.appendChild(option);
-          }
+    async function loadChannels() {
+      const text = await (await fetch('channels.m3u')).text();
+      const lines = text.split('\n');
+      const sel = document.getElementById('chanList');
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].startsWith('#EXTINF')) {
+          const name = lines[i].split(',')[1] || 'قناة';
+          const url = lines[i+1];
+          const opt = document.createElement('option');
+          opt.text = name;
+          opt.value = url;
+          sel.appendChild(opt);
         }
-        if (select.options.length > 0) {
-          playChannel(select.options[0].value);
-        }
-      });
-
-    function playChannel(url) {
-      if (Hls.isSupported()) {
-        const hls = new Hls();
-        hls.loadSource(url);
-        hls.attachMedia(player);
-      } else {
-        player.src = url;
       }
     }
+
+    function play(url) {
+      const video = document.getElementById('player');
+      if (window.Hls && Hls.isSupported()) {
+        const hls = new Hls();
+        hls.loadSource(url);
+        hls.attachMedia(video);
+      } else {
+        video.src = url;
+      }
+      video.play();
+    }
+
+    loadChannels();
   </script>
 </body>
 </html>
