@@ -1,52 +1,71 @@
+
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8">
-  <title>IPTV عربي قابل للتشغيل</title>
+  <meta charset="UTF-8" />
+  <title>IPTV - القنوات العربية الفاخرة</title>
   <style>
-    body { background: #000; color: #0f0; font-family: sans-serif; text-align: center; }
-    video { width: 90%; margin-top: 20px; background: #111; }
-    select { width: 80%; padding: 10px; font-size: 18px; margin-top: 20px; }
+    body { margin: 0; display: flex; height: 100vh; background: #101010; font-family: 'Segoe UI', sans-serif; color: #fff; }
+    aside { width: 330px; background: #1a1a1a; overflow-y: auto; padding: 10px; border-left: 3px solid #0f0; }
+    aside h2 { margin: 0 0 10px; padding: 10px; background: #0f0; color: #000; text-align: center; }
+    .channel { display: flex; align-items: center; gap: 10px; padding: 10px; cursor: pointer; border-bottom: 1px solid #333; }
+    .channel img { width: 32px; height: 32px; border-radius: 6px; }
+    .channel:hover, .channel.active { background: #0f0; color: black; }
+    main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+    video { width: 90%; height: auto; border: 3px solid #0f0; background: black; }
+    #search { width: 100%; padding: 10px; font-size: 16px; margin-bottom: 10px; }
   </style>
 </head>
 <body>
-  <h1>IPTV عربي</h1>
-  <select id="chanList" onchange="play(this.value)">
-    <option>-- اختر قناة --</option>
-  </select>
-  <video id="player" controls autoplay></video>
-
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <aside>
+    <h2>📺 قائمة القنوات</h2>
+    <input type="text" id="search" placeholder="🔍 ابحث عن قناة..." oninput="filterChannels()" />
+    <div id="channelList"></div>
+  </aside>
+  <main>
+    <h1>🎬 IPTV - بث مباشر بجودة عالية</h1>
+    <video id="videoPlayer" controls autoplay></video>
+  </main>
   <script>
-    async function loadChannels() {
-      const text = await (await fetch('channels.m3u')).text();
-      const lines = text.split('\n');
-      const sel = document.getElementById('chanList');
-      for (let i = 0; i < lines.length; i++) {
-        if (lines[i].startsWith('#EXTINF')) {
-          const name = lines[i].split(',')[1] || 'قناة';
-          const url = lines[i+1];
-          const opt = document.createElement('option');
-          opt.text = name;
-          opt.value = url;
-          sel.appendChild(opt);
-        }
-      }
+    const channels = [
+      { name: "Al Jazeera", url: "https://live-hls-web-aje.getaj.net/AJE/01.m3u8", logo: "https://upload.wikimedia.org/wikipedia/en/thumb/6/6d/Aljazeera_english_logo.svg/320px-Aljazeera_english_logo.svg.png" },
+      { name: "Al Arabiya", url: "https://shls-arabiya-prod.kt.akamaized.net/out/v1/61e4361f6f3c4dd6a3c7d2f0c2d75e47/index.m3u8", logo: "https://upload.wikimedia.org/wikipedia/en/thumb/e/e4/AlArabiya_Logo.svg/2560px-AlArabiya_Logo.svg.png" },
+      { name: "MBC 1", url: "https://mbclive.mbc.net/mbc1/playlist.m3u8", logo: "https://upload.wikimedia.org/wikipedia/en/thumb/2/20/MBC_1_Logo.svg/2560px-MBC_1_Logo.svg.png" },
+      { name: "MBC 2", url: "https://mbclive.mbc.net/mbc2/playlist.m3u8", logo: "https://upload.wikimedia.org/wikipedia/en/thumb/e/e8/MBC_2_Logo.svg/2560px-MBC_2_Logo.svg.png" },
+      { name: "MBC 3", url: "https://mbclive.mbc.net/mbc3/playlist.m3u8", logo: "https://upload.wikimedia.org/wikipedia/en/thumb/5/5a/MBC_3_Logo.svg/2560px-MBC_3_Logo.svg.png" },
+      { name: "MBC Drama", url: "https://mbclive.mbc.net/mbcdrama/playlist.m3u8", logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/MBC_Drama_logo.svg/2560px-MBC_Drama_logo.svg.png" },
+      { name: "Rotana Cinema", url: "https://rotana.net/stream/rotana_cinema.m3u8", logo: "https://upload.wikimedia.org/wikipedia/ar/thumb/e/e5/RotanaCinemaNewlogo.png/320px-RotanaCinemaNewlogo.png" },
+      { name: "Saudi Quran", url: "https://live.ksrelief.org/quran.m3u8", logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b6/Saudi_Quran_Channel_Logo.png/600px-Saudi_Quran_Channel_Logo.png" },
+      { name: "Saudi Sunnah", url: "https://live.ksrelief.org/sunnah.m3u8", logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/Saudi_Sunnah_Channel_Logo.png/600px-Saudi_Sunnah_Channel_Logo.png" }
+    ];
+
+    function renderChannels(list) {
+      const container = document.getElementById("channelList");
+      container.innerHTML = "";
+      list.forEach((ch) => {
+        const div = document.createElement("div");
+        div.className = "channel";
+        div.innerHTML = `<img src="${ch.logo}" alt="${ch.name}"/><span>${ch.name}</span>`;
+        div.onclick = () => playChannel(ch.url, div);
+        container.appendChild(div);
+      });
     }
 
-    function play(url) {
-      const video = document.getElementById('player');
-      if (window.Hls && Hls.isSupported()) {
-        const hls = new Hls();
-        hls.loadSource(url);
-        hls.attachMedia(video);
-      } else {
-        video.src = url;
-      }
-      video.play();
+    function playChannel(url, element) {
+      document.querySelectorAll(".channel").forEach(el => el.classList.remove("active"));
+      element.classList.add("active");
+      const player = document.getElementById("videoPlayer");
+      player.src = url;
+      player.play();
     }
 
-    loadChannels();
+    function filterChannels() {
+      const query = document.getElementById("search").value.toLowerCase();
+      const filtered = channels.filter(c => c.name.toLowerCase().includes(query));
+      renderChannels(filtered);
+    }
+
+    renderChannels(channels);
   </script>
 </body>
 </html>
