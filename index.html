@@ -1,165 +1,52 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Hatem IPTV – قنوات عربيّة مباشرة</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+  <meta charset="UTF-8">
+  <title>IPTV عربي قابل للتشغيل</title>
   <style>
-    body{font-family:sans-serif}
-    .channel-active{background-color:#2563eb;color:#fff}
+    body { background: #000; color: #0f0; font-family: sans-serif; text-align: center; }
+    video { width: 90%; margin-top: 20px; background: #111; }
+    select { width: 80%; padding: 10px; font-size: 18px; margin-top: 20px; }
   </style>
 </head>
-<body class="min-h-screen flex bg-gray-100">
-  <!--──────── Sidebar ────────-->
-  <aside class="w-80 bg-white shadow-xl overflow-y-auto">
-    <div class="p-4 space-y-3">
-      <input id="search" type="text" placeholder="بحث عن قناة…" class="w-full rounded-lg border-gray-300">
-      <label class="flex items-center text-xs gap-2 select-none cursor-pointer">
-        <input id="toggleRadio" type="checkbox" class="h-4 w-4 border-gray-300 rounded checked:bg-blue-600" checked>
-        إظهار قنوات الراديو (صوت فقط)
-      </label>
-      <details class="text-xs text-gray-600 leading-normal border-t pt-2">
-        <summary class="cursor-pointer">كيفية إضافة قائمة أخرى؟</summary>
-        <p class="mt-1">
-          ✦ ضَع <code>channels.m3u</code> أو <code>channels.json</code> بجوار الصفحة ثم اضغط <kbd>Ctrl + R</kbd>.<br>
-          ✦ بشكل افتراضي نحمل <em>ara.m3u</em> من <a class="text-blue-600 underline" href="https://iptv-org.github.io/iptv/">iptv‑org</a>، والتي تحوي مئات القنوات العربيّة المفتوحة.
-        </p>
-      </details>
-    </div>
-    <ul id="channelList" class="space-y-0.5"></ul>
-  </aside>
+<body>
+  <h1>IPTV عربي</h1>
+  <select id="chanList" onchange="play(this.value)">
+    <option>-- اختر قناة --</option>
+  </select>
+  <video id="player" controls autoplay></video>
 
-  <!--──────── Player ─────────-->
-  <main class="flex-1 flex flex-col items-center justify-center p-4">
-    <video id="video" class="w-full max-w-6xl aspect-video rounded-2xl shadow-lg bg-black" controls playsinline></video>
-    <h2 id="nowPlaying" class="mt-4 text-xl font-semibold"></h2>
-  </main>
-
-  <!--──────── Logic ─────────-->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <script>
-    /**
-     * Loading priority:
-     * 1) channels.json (local)
-     * 2) channels.m3u  (local)
-     * 3) ara.m3u      (remote from iptv‑org)
-     */
-    async function getChannels(){
-      // JSON (local)
-      try{
-        const res = await fetch('channels.json');
-        if(res.ok) return await res.json();
-      }catch{}
-      // M3U (local)
-      try{
-        const res = await fetch('channels.m3u');
-        if(res.ok) return parseM3U(await res.text());
-      }catch{}
-      // Remote arabic playlist
-      const res = await fetch('https://iptv-org.github.io/iptv/languages/ara.m3u');
-      if(!res.ok) throw new Error('قائمة القنوات غير متاحة');
-      return parseM3U(await res.text());
-    }
-
-    // --- Helpers ---
-    function getAttr(str,attr){
-      const match = str.match(new RegExp(attr+'="([^"]+)"','i'));
-      return match?match[1]:'';
-    }
-    // Convert M3U → Array<{name,url,type}>
-    function parseM3U(txt){
-      const lines = txt.split(/\r?\n/);
-      const list  = [];
-      for(let i=0;i<lines.length;i++){
-        if(lines[i].startsWith('#EXTINF')){
-          const info = lines[i];
-          const name = info.split(',').slice(1).join(',').trim();
-          const url  = lines[i+1]?.trim();
-          if(!url || url.startsWith('#')) continue;
-          // Determine type (Radio vs TV) from group-title or tvg-type
-          const group   = getAttr(info,'group-title').toLowerCase();
-          const tvgType = getAttr(info,'tvg-type').toLowerCase();
-          const type    = group.includes('radio')||tvgType==='audio'? 'radio':'tv';
-          list.push({name,url,type});
+    async function loadChannels() {
+      const text = await (await fetch('channels.m3u')).text();
+      const lines = text.split('\n');
+      const sel = document.getElementById('chanList');
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].startsWith('#EXTINF')) {
+          const name = lines[i].split(',')[1] || 'قناة';
+          const url = lines[i+1];
+          const opt = document.createElement('option');
+          opt.text = name;
+          opt.value = url;
+          sel.appendChild(opt);
         }
       }
-      return list;
     }
 
-    // --- DOM & State ---
-    const channelListEl = document.getElementById('channelList');
-    const videoEl       = document.getElementById('video');
-    const nowPlaying    = document.getElementById('nowPlaying');
-    const searchBox     = document.getElementById('search');
-    const toggleRadio   = document.getElementById('toggleRadio');
-
-    let channels = [];
-    let filtered = [];
-
-    function render(){
-      channelListEl.innerHTML='';
-      filtered.forEach((ch,i)=>{
-        ch.idx = i;
-        const li = document.createElement('li');
-        li.id = 'channel-'+i;
-        li.className = 'cursor-pointer px-4 py-2 hover:bg-gray-200 truncate flex items-center gap-2';
-        li.innerHTML = ch.type==='radio'? '🎧':'📺';
-        li.innerHTML += ' '+(ch.name||'Channel '+(i+1));
-        li.addEventListener('click',()=>playChannel(ch));
-        channelListEl.appendChild(li);
-      });
-    }
-
-    function applyFilters(){
-      const q = searchBox.value.trim().toLowerCase();
-      filtered = channels.filter(c=>{
-        if(!toggleRadio.checked && c.type==='radio') return false; // hide radio
-        return c.name.toLowerCase().includes(q);
-      });
-      render();
-    }
-
-    function playChannel(ch){
-      document.querySelectorAll('#channelList li').forEach(li=>li.classList.remove('channel-active'));
-      const li = document.getElementById('channel-'+ch.idx);
-      if(li) li.classList.add('channel-active');
-      nowPlaying.textContent = ch.name;
-
-      if(Hls.isSupported()){
-        if(window.hls) window.hls.destroy();
-        window.hls = new Hls({autoStartLoad:true});
-        window.hls.loadSource(ch.url);
-        window.hls.attachMedia(videoEl);
-        window.hls.on(Hls.Events.ERROR,(ev,data)=>{
-          if(data.fatal){
-            alert('تعذّر تشغيل القناة. جرّب قناة أخرى.');
-          }
-        });
-      }else if(videoEl.canPlayType('application/vnd.apple.mpegurl')){
-        videoEl.src = ch.url;
-      }else{
-        alert('المتصفح لا يدعم ‎HLS');
+    function play(url) {
+      const video = document.getElementById('player');
+      if (window.Hls && Hls.isSupported()) {
+        const hls = new Hls();
+        hls.loadSource(url);
+        hls.attachMedia(video);
+      } else {
+        video.src = url;
       }
-      videoEl.play();
+      video.play();
     }
 
-    // Init
-    (async()=>{
-      try{
-        channels = await getChannels();
-        applyFilters();
-        // Auto‑play first non‑radio channel if موجود
-        const firstTV = channels.find(c=>c.type==='tv')||channels[0];
-        if(firstTV) playChannel(firstTV);
-      }catch(err){
-        alert(err.message);
-      }
-    })();
-
-    // events
-    searchBox.addEventListener('input',applyFilters);
-    toggleRadio.addEventListener('change',applyFilters);
+    loadChannels();
   </script>
 </body>
 </html>
