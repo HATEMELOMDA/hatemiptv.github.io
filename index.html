@@ -3,91 +3,162 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Hatem IPTV</title>
+  <title>Hatem IPTV – قنوات عربيّة مباشرة</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
   <style>
-    body { 
-      font-family: sans-serif; 
-    }
-    .channel-active { background-color: #2563eb; color: white; }
+    body{font-family:sans-serif}
+    .channel-active{background-color:#2563eb;color:#fff}
+    #overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.7);color:#fff;text-align:center;z-index:50;padding:2rem}
   </style>
 </head>
 <body class="min-h-screen flex bg-gray-100">
-  <aside class="w-64 bg-white shadow-xl overflow-y-auto">
-    <div class="p-4">
-      <input id="search" type="text" placeholder="بحث..." class="w-full rounded-lg border-gray-300">
+  <!--──────── Sidebar ────────-->
+  <aside class="w-80 bg-white shadow-xl overflow-y-auto">
+    <div class="p-4 space-y-3">
+      <input id="search" type="text" placeholder="بحث عن قناة…" class="w-full rounded-lg border-gray-300">
+      <label class="flex items-center text-xs gap-2 select-none cursor-pointer">
+        <input id="toggleRadio" type="checkbox" class="h-4 w-4 border-gray-300 rounded checked:bg-blue-600" checked>
+        إظهار قنوات الراديو (صوت فقط)
+      </label>
+      <details class="text-xs text-gray-600 leading-normal border-t pt-2">
+        <summary class="cursor-pointer">حل مشكلة "صوت بدون صورة"</summary>
+        <div class="mt-1 space-y-1">
+          <p>✦ معظم بثّيات <strong>.m3u8</strong> العربيّة تُرسَل عبر <code>http://</code> فقط، بينما GitHub Pages يعمل على <code>https://</code>.</p>
+          <p>✦ متصفّحات اليوم تحجب الفيديو غير الآمن وتسمح أحياناً بمرور الصوت فقط ⇒ تسمع ولا ترى.</p>
+          <p>✦ افتح الصفحة عبر <kbd>http://</kbd> بدلاً من <kbd>https://</kbd> (اضغط ‎↘ أو استعمل دومين مخصّص بلا SSL) أو استضف الملف على خادم داخلي ‎HTTP.</p>
+        </div>
+      </details>
     </div>
     <ul id="channelList" class="space-y-0.5"></ul>
   </aside>
-  <main class="flex-1 flex flex-col items-center justify-center p-4">
-    <video id="video" class="w-full max-w-5xl aspect-video rounded-2xl shadow-lg bg-black" controls autoplay></video>
+
+  <!--──────── Player ─────────-->
+  <main class="flex-1 flex flex-col items-center justify-center p-4 relative">
+    <div id="overlay"></div>
+    <video id="video" class="w-full max-w-6xl aspect-video rounded-2xl shadow-lg bg-black" controls playsinline></video>
     <h2 id="nowPlaying" class="mt-4 text-xl font-semibold"></h2>
   </main>
 
+  <!--──────── Logic ─────────-->
   <script>
-    // Load channels from channels.json or fallback demo list
-    async function getChannels() {
-      try {
-        const res = await fetch('channels.json');
-        if (!res.ok) throw new Error('missing');
-        return await res.json();
-      } catch (e) {
-        return [
-          {"name":"MBC1","url":"https://example.com/mbc1.m3u8","category":"ترفيهي"},
-          {"name":"Al Jazeera","url":"https://example.com/aljazeera.m3u8","category":"أخباري"},
-          {"name":"Rotana Cinema","url":"https://example.com/rotanacinema.m3u8","category":"أفلام"}
-        ];
+    // ========= 1. تحميل القنوات =========
+    async function getChannels(){
+      // channels.json → channels.m3u → ara.m3u (iptv‑org)
+      const order = [
+        {url:'channels.json', json:true},
+        {url:'channels.m3u',  json:false},
+        {url:'https://iptv-org.github.io/iptv/languages/ara.m3u', json:false}
+      ];
+      for(const src of order){
+        try{
+          const res = await fetch(src.url);
+          if(!res.ok) continue;
+          return src.json? await res.json() : parseM3U(await res.text());
+        }catch{}
       }
+      throw new Error('تعذّر تحميل قائمة القنوات');
     }
 
-    const channelListEl = document.getElementById('channelList');
-    const video = document.getElementById('video');
-    const nowPlaying = document.getElementById('nowPlaying');
-    let channels = [];
-
-    function playChannel(ch) {
-      document.querySelectorAll('#channelList li').forEach(li => li.classList.remove('channel-active'));
-      const li = document.querySelector('#channel-' + ch.index);
-      if (li) li.classList.add('channel-active');
-      nowPlaying.textContent = ch.name;
-      if (Hls.isSupported()) {
-        if (window.hls) window.hls.destroy();
-        window.hls = new Hls({autoStartLoad:true});
-        window.hls.loadSource(ch.url);
-        window.hls.attachMedia(video);
-      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = ch.url;
-      } else {
-        alert('جهازك لا يدعم تشغيل HLS');
+    // ========= 2. Parser =========
+    function attr(line,key){
+      const m = line.match(new RegExp(`${key}="([^"]+)"`,`i`));
+      return m?m[1]:'';
+    }
+    function parseM3U(txt){
+      const lines = txt.split(/\r?\n/);
+      const list=[];
+      for(let i=0;i<lines.length;i++){
+        if(lines[i].startsWith('#EXTINF')){
+          const meta = lines[i];
+          const url  = lines[i+1]?.trim();
+          if(!url||url.startsWith('#')) continue;
+          const name = meta.split(',').slice(1).join(',').trim();
+          const grp  = attr(meta,'group-title').toLowerCase();
+          const typ  = attr(meta,'tvg-type').toLowerCase();
+          const type = grp.includes('radio')||typ==='audio'? 'radio':'tv';
+          list.push({name,url,type});
+        }
       }
-      video.play();
+      return list;
     }
 
-    function renderList(list) {
-      channelListEl.innerHTML = '';
-      list.forEach((ch, idx) => {
-        ch.index = idx;
-        const li = document.createElement('li');
-        li.id = 'channel-' + idx;
-        li.className = 'cursor-pointer px-4 py-2 hover:bg-gray-200';
-        li.textContent = ch.name;
-        li.addEventListener('click', () => playChannel(ch));
-        channelListEl.appendChild(li);
+    // ========= 3. Elements =========
+    const $list   = document.getElementById('channelList');
+    const $video  = document.getElementById('video');
+    const $title  = document.getElementById('nowPlaying');
+    const $srch   = document.getElementById('search');
+    const $radChk = document.getElementById('toggleRadio');
+    const $overlay= document.getElementById('overlay');
+
+    let channels=[], filtered=[];
+
+    // ========= 4. UI =========
+    function draw(){
+      $list.innerHTML='';
+      filtered.forEach((c,i)=>{
+        c.idx=i;
+        const li=document.createElement('li');
+        li.id='c'+i;
+        li.className='cursor-pointer px-4 py-2 hover:bg-gray-200 truncate flex items-center gap-2';
+        li.innerHTML=(c.type==='radio'?'🎧':'📺')+' '+(c.name||'Channel '+(i+1));
+        li.onclick=()=>play(c);
+        $list.appendChild(li);
       });
     }
+    function filter(){
+      const q=$srch.value.toLowerCase();
+      filtered = channels.filter(c=>{
+        if(!$radChk.checked && c.type==='radio') return false;
+        return c.name.toLowerCase().includes(q);
+      });
+      draw();
+    }
 
-    getChannels().then(chs => {
-      channels = chs;
-      renderList(channels);
-      if (channels.length) playChannel(channels[0]);
-    });
+    // ========= 5. Player =========
+    function showOverlay(msg){
+      $overlay.textContent=msg; $overlay.style.display='flex';
+    }
+    function hideOverlay(){ $overlay.style.display='none'; }
 
-    document.getElementById('search').addEventListener('input', e => {
-      const q = e.target.value.trim().toLowerCase();
-      const filtered = channels.filter(ch => ch.name.toLowerCase().includes(q) || (ch.category && ch.category.toLowerCase().includes(q)));
-      renderList(filtered);
-    });
+    function play(ch){
+      document.querySelectorAll('#channelList li').forEach(li=>li.classList.remove('channel-active'));
+      const li=document.getElementById('c'+ch.idx); if(li) li.classList.add('channel-active');
+      $title.textContent=ch.name;
+
+      // Mixed‑content detector
+      if(location.protocol==='https:' && ch.url.startsWith('http://')){
+        showOverlay('💡 هذه القناة تُرسل عبر HTTP فقط\nالمتصفّح يمنع الفيديو غير الآمن على HTTPS.\nافتح الموقع بــ HTTP أو استخدم خادم داخلي.');
+        return;
+      }else hideOverlay();
+
+      if(Hls.isSupported()){
+        if(window.hls) window.hls.destroy();
+        window.hls=new Hls({autoStartLoad:true});
+        window.hls.loadSource(ch.url);
+        window.hls.attachMedia($video);
+        window.hls.on(Hls.Events.ERROR,(ev,d)=>{ if(d.fatal) showOverlay('خطأ في تشغيل القناة'); });
+      }else if($video.canPlayType('application/vnd.apple.mpegurl')){
+        $video.src=ch.url;
+      }else{
+        showOverlay('المتصفّح لا يدعم HLS');
+      }
+      $video.play();
+    }
+
+    // ========= 6. Init =========
+    (async()=>{
+      try{
+        channels = await getChannels();
+        filter();
+        const first = channels.find(c=>c.type==='tv')||channels[0];
+        if(first) play(first);
+      }catch(e){ showOverlay(e.message); }
+    })();
+
+    // ========= 7. Events =========
+    $srch.oninput = filter;
+    $radChk.onchange = filter;
   </script>
 </body>
 </html>
