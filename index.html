@@ -1,52 +1,47 @@
+
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar">
 <head>
-  <meta charset="UTF-8">
-  <title>IPTV عربي قابل للتشغيل</title>
-  <style>
-    body { background: #000; color: #0f0; font-family: sans-serif; text-align: center; }
-    video { width: 90%; margin-top: 20px; background: #111; }
-    select { width: 80%; padding: 10px; font-size: 18px; margin-top: 20px; }
-  </style>
+    <meta charset="UTF-8">
+    <title>IPTV قنوات عربي (429 قناة)</title>
+    <style>
+        body { background-color: black; color: lightgreen; font-family: sans-serif; text-align: center; }
+        select { font-size: 18px; padding: 10px; margin: 20px; }
+        video { width: 80%; height: auto; margin-top: 20px; }
+    </style>
 </head>
 <body>
-  <h1>IPTV عربي</h1>
-  <select id="chanList" onchange="play(this.value)">
-    <option>-- اختر قناة --</option>
-  </select>
-  <video id="player" controls autoplay></video>
-
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-  <script>
-    async function loadChannels() {
-      const text = await (await fetch('channels.m3u')).text();
-      const lines = text.split('\n');
-      const sel = document.getElementById('chanList');
-      for (let i = 0; i < lines.length; i++) {
-        if (lines[i].startsWith('#EXTINF')) {
-          const name = lines[i].split(',')[1] || 'قناة';
-          const url = lines[i+1];
-          const opt = document.createElement('option');
-          opt.text = name;
-          opt.value = url;
-          sel.appendChild(opt);
+    <h1>IPTV قنوات عربي (429 قناة)</h1>
+    <select id="channelSelect" onchange="playChannel()">
+        <option value="">اختر قناة</option>
+    </select>
+    <video id="videoPlayer" controls autoplay></video>
+    <script>
+        async function fetchChannels() {
+            const res = await fetch('channels.m3u');
+            const text = await res.text();
+            const lines = text.split('\n');
+            const select = document.getElementById('channelSelect');
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].startsWith('#EXTINF')) {
+                    const name = lines[i].split(',')[1];
+                    const url = lines[i+1];
+                    const option = document.createElement('option');
+                    option.text = name;
+                    option.value = url;
+                    select.appendChild(option);
+                }
+            }
         }
-      }
-    }
 
-    function play(url) {
-      const video = document.getElementById('player');
-      if (window.Hls && Hls.isSupported()) {
-        const hls = new Hls();
-        hls.loadSource(url);
-        hls.attachMedia(video);
-      } else {
-        video.src = url;
-      }
-      video.play();
-    }
+        function playChannel() {
+            const video = document.getElementById('videoPlayer');
+            const url = document.getElementById('channelSelect').value;
+            video.src = url;
+            video.play();
+        }
 
-    loadChannels();
-  </script>
+        fetchChannels();
+    </script>
 </body>
 </html>
