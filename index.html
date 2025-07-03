@@ -1,79 +1,93 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <title>IPTV - قنوات عربية (429)</title>
-    <style>
-        body {
-            margin: 0;
-            font-family: 'Segoe UI', sans-serif;
-            background: #0d1117;
-            color: #c9d1d9;
-            text-align: center;
-        }
-        header {
-            background: #161b22;
-            padding: 20px;
-            font-size: 24px;
-            color: #58a6ff;
-        }
-        video {
-            width: 90%;
-            max-width: 1000px;
-            height: 480px;
-            margin: 20px auto;
-            background: black;
-            border: 2px solid #30363d;
-        }
-        ul {
-            list-style: none;
-            padding: 0;
-            width: 90%;
-            max-width: 1000px;
-            background: #161b22;
-            margin: auto;
-            border: 1px solid #30363d;
-            border-radius: 8px;
-            overflow: hidden;
-        }
-        li {
-            padding: 15px;
-            border-bottom: 1px solid #30363d;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        li:hover {
-            background: #21262d;
-        }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hatem IPTV</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+  <style>
+    body { 
+      font-family: sans-serif; 
+    }
+    .channel-active { background-color: #2563eb; color: white; }
+  </style>
 </head>
-<body>
-    <header>📺 IPTV - القنوات العربية (429)</header>
-    <video id="player" controls autoplay></video>
-    <ul id="channelList"></ul>
+<body class="min-h-screen flex bg-gray-100">
+  <aside class="w-64 bg-white shadow-xl overflow-y-auto">
+    <div class="p-4">
+      <input id="search" type="text" placeholder="بحث..." class="w-full rounded-lg border-gray-300">
+    </div>
+    <ul id="channelList" class="space-y-0.5"></ul>
+  </aside>
+  <main class="flex-1 flex flex-col items-center justify-center p-4">
+    <video id="video" class="w-full max-w-5xl aspect-video rounded-2xl shadow-lg bg-black" controls autoplay></video>
+    <h2 id="nowPlaying" class="mt-4 text-xl font-semibold"></h2>
+  </main>
 
-    <script>
-        const channels = [
-            { name: "MBC 1", url: "https://iptv-org.github.io/iptv/channels/mbc-1.m3u8" },
-            { name: "MBC 2", url: "https://iptv-org.github.io/iptv/channels/mbc-2.m3u8" },
-            { name: "MBC 3", url: "https://iptv-org.github.io/iptv/channels/mbc-3.m3u8" },
-            { name: "Al Jazeera Arabic", url: "https://iptv-org.github.io/iptv/channels/al-jazeera.m3u8" },
-            { name: "Al Arabiya", url: "https://iptv-org.github.io/iptv/channels/al-arabiya.m3u8" },
-            { name: "Rotana Cinema", url: "https://iptv-org.github.io/iptv/channels/rotana-cinema.m3u8" }
-            // أضف باقي القنوات بنفس الشكل: {name: "...", url: "..."},
+  <script>
+    // Load channels from channels.json or fallback demo list
+    async function getChannels() {
+      try {
+        const res = await fetch('channels.json');
+        if (!res.ok) throw new Error('missing');
+        return await res.json();
+      } catch (e) {
+        return [
+          {"name":"MBC1","url":"https://example.com/mbc1.m3u8","category":"ترفيهي"},
+          {"name":"Al Jazeera","url":"https://example.com/aljazeera.m3u8","category":"أخباري"},
+          {"name":"Rotana Cinema","url":"https://example.com/rotanacinema.m3u8","category":"أفلام"}
         ];
+      }
+    }
 
-        const player = document.getElementById("player");
-        const list = document.getElementById("channelList");
-        channels.forEach(ch => {
-            const li = document.createElement("li");
-            li.textContent = ch.name;
-            li.onclick = () => {
-                player.src = ch.url;
-                player.play();
-            };
-            list.appendChild(li);
-        });
-    </script>
+    const channelListEl = document.getElementById('channelList');
+    const video = document.getElementById('video');
+    const nowPlaying = document.getElementById('nowPlaying');
+    let channels = [];
+
+    function playChannel(ch) {
+      document.querySelectorAll('#channelList li').forEach(li => li.classList.remove('channel-active'));
+      const li = document.querySelector('#channel-' + ch.index);
+      if (li) li.classList.add('channel-active');
+      nowPlaying.textContent = ch.name;
+      if (Hls.isSupported()) {
+        if (window.hls) window.hls.destroy();
+        window.hls = new Hls({autoStartLoad:true});
+        window.hls.loadSource(ch.url);
+        window.hls.attachMedia(video);
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = ch.url;
+      } else {
+        alert('جهازك لا يدعم تشغيل HLS');
+      }
+      video.play();
+    }
+
+    function renderList(list) {
+      channelListEl.innerHTML = '';
+      list.forEach((ch, idx) => {
+        ch.index = idx;
+        const li = document.createElement('li');
+        li.id = 'channel-' + idx;
+        li.className = 'cursor-pointer px-4 py-2 hover:bg-gray-200';
+        li.textContent = ch.name;
+        li.addEventListener('click', () => playChannel(ch));
+        channelListEl.appendChild(li);
+      });
+    }
+
+    getChannels().then(chs => {
+      channels = chs;
+      renderList(channels);
+      if (channels.length) playChannel(channels[0]);
+    });
+
+    document.getElementById('search').addEventListener('input', e => {
+      const q = e.target.value.trim().toLowerCase();
+      const filtered = channels.filter(ch => ch.name.toLowerCase().includes(q) || (ch.category && ch.category.toLowerCase().includes(q)));
+      renderList(filtered);
+    });
+  </script>
 </body>
 </html>
